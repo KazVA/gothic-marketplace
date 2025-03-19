@@ -4,104 +4,12 @@ import { useSearchParams } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
-import { Product, Category } from '@/lib/types';
+import { Product } from '@/lib/types';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Filter, X } from 'lucide-react';
-
-// Sample product data
-const allProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Gothic Cathedral Mousepad',
-    price: 24.99,
-    description: 'Premium mousepad with a gothic cathedral design. Perfect for adding a touch of darkness to your desktop.',
-    images: ['https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=800&q=80'],
-    category: 'mousepads',
-    tags: ['gothic', 'cathedral', 'desk accessories'],
-    featured: true,
-    inStock: true
-  },
-  {
-    id: '2',
-    name: 'Raven\'s Journal',
-    price: 29.99,
-    description: 'Elegant journal with an embossed raven design. 200 high-quality pages for your darkest thoughts.',
-    images: ['https://images.unsplash.com/photo-1527576539890-dfa815648363?auto=format&fit=crop&w=800&q=80'],
-    category: 'journals',
-    tags: ['raven', 'notebook', 'writing'],
-    featured: true,
-    inStock: true
-  },
-  {
-    id: '3',
-    name: 'Dark Night Sky Mousepad',
-    price: 22.99,
-    description: 'Extra large mousepad with a starry night sky design. Perfect for gamers and dark aesthetic enthusiasts.',
-    images: ['https://images.unsplash.com/photo-1470813740244-df37b8c1edcb?auto=format&fit=crop&w=800&q=80'],
-    category: 'mousepads',
-    tags: ['night', 'stars', 'gaming'],
-    featured: true,
-    inStock: true
-  },
-  {
-    id: '4',
-    name: 'Victorian Architecture Journal',
-    price: 34.99,
-    description: 'Hard-bound journal featuring Victorian architecture prints. Includes bookmark ribbon and elastic closure.',
-    images: ['https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80'],
-    category: 'journals',
-    tags: ['victorian', 'architecture', 'vintage'],
-    featured: true,
-    inStock: true
-  },
-  {
-    id: '5',
-    name: 'Dark Forest Mousepad',
-    price: 26.99,
-    description: 'A mousepad featuring a mysterious dark forest design. High-quality fabric with non-slip backing.',
-    images: ['https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80'],
-    category: 'mousepads',
-    tags: ['forest', 'nature', 'dark'],
-    inStock: true
-  },
-  {
-    id: '6',
-    name: 'Skull Embroidery Journal',
-    price: 32.99,
-    description: 'Black leather journal with embroidered skull design. 180 pages of acid-free paper.',
-    images: ['https://images.unsplash.com/photo-1494891848038-7bd202a2afeb?auto=format&fit=crop&w=800&q=80'],
-    category: 'journals',
-    tags: ['skull', 'embroidery', 'leather'],
-    inStock: true
-  },
-  {
-    id: '7',
-    name: 'Gothic Gargoyle T-Shirt',
-    price: 29.99,
-    description: 'Premium black t-shirt with a detailed gargoyle print. 100% cotton with a comfortable fit.',
-    images: ['https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80'],
-    category: 'apparel',
-    tags: ['gargoyle', 't-shirt', 'clothing'],
-    inStock: true
-  },
-  {
-    id: '8',
-    name: 'Vintage Coffin Pendant',
-    price: 19.99,
-    description: 'Antique silver coffin-shaped pendant on a delicate chain. Perfect gothic accessory for any outfit.',
-    images: ['https://images.unsplash.com/photo-1494891848038-7bd202a2afeb?auto=format&fit=crop&w=800&q=80'],
-    category: 'accessories',
-    tags: ['coffin', 'pendant', 'jewelry'],
-    inStock: true
-  },
-];
-
-const categories: { id: Category; name: string }[] = [
-  { id: 'mousepads', name: 'Mousepads' },
-  { id: 'journals', name: 'Journals' },
-  { id: 'apparel', name: 'Apparel' },
-  { id: 'accessories', name: 'Accessories' },
-];
+import { fetchPrintifyProducts, fetchPrintifyShops, transformPrintifyProducts, extractCategoriesFromProducts } from '@/lib/printify';
+import { useToast } from '@/hooks/use-toast';
 
 const sortOptions = [
   { id: 'featured', name: 'Featured' },
@@ -112,15 +20,40 @@ const sortOptions = [
 
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState('featured');
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const { toast } = useToast();
+  
+  // Fetch shop ID first
+  const shopQuery = useQuery({
+    queryKey: ['printifyShops'],
+    queryFn: fetchPrintifyShops,
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
+  
+  // Then use the shop ID to fetch products
+  const productsQuery = useQuery({
+    queryKey: ['printifyProducts', shopQuery.data],
+    queryFn: async () => {
+      if (!shopQuery.data || !shopQuery.data.data || shopQuery.data.data.length === 0) {
+        throw new Error("No shops found");
+      }
+      const shopId = shopQuery.data.data[0].id;
+      const printifyProducts = await fetchPrintifyProducts(shopId);
+      return transformPrintifyProducts(printifyProducts);
+    },
+    enabled: !!shopQuery.data && !!shopQuery.data.data && shopQuery.data.data.length > 0,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+  
+  const categories = productsQuery.data 
+    ? extractCategoriesFromProducts(productsQuery.data)
+    : [];
   
   useEffect(() => {
     window.scrollTo(0, 0);
-    setProducts(allProducts);
   }, []);
   
   useEffect(() => {
@@ -131,7 +64,19 @@ const Products = () => {
   }, [searchParams]);
   
   useEffect(() => {
-    let result = [...products];
+    if (productsQuery.error) {
+      toast({
+        title: "Error",
+        description: "Failed to load products. Please try again later.",
+        variant: "destructive"
+      });
+    }
+  }, [productsQuery.error, toast]);
+  
+  useEffect(() => {
+    if (!productsQuery.data) return;
+    
+    let result = [...productsQuery.data];
     
     // Apply category filter
     if (selectedCategory) {
@@ -157,7 +102,7 @@ const Products = () => {
     }
     
     setFilteredProducts(result);
-  }, [products, selectedCategory, sortBy]);
+  }, [productsQuery.data, selectedCategory, sortBy]);
   
   const handleCategoryChange = (category: string | null) => {
     setSelectedCategory(category);
@@ -172,6 +117,8 @@ const Products = () => {
   const handleSortChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setSortBy(event.target.value);
   };
+  
+  const isLoading = shopQuery.isLoading || productsQuery.isLoading;
   
   return (
     <div className="min-h-screen flex flex-col bg-gothic-black text-gothic-silver">
@@ -271,17 +218,47 @@ const Products = () => {
                 </div>
               </div>
               
+              {/* Loading State */}
+              {isLoading && (
+                <div className="text-center py-16">
+                  <div className="w-16 h-16 border-4 border-gothic-accent/20 border-t-gothic-accent rounded-full animate-spin mx-auto mb-4"></div>
+                  <p className="text-gothic-silver/70">Loading products...</p>
+                </div>
+              )}
+              
+              {/* Error State */}
+              {(shopQuery.error || productsQuery.error) && !isLoading && (
+                <div className="text-center py-16">
+                  <p className="text-gothic-silver/70 mb-4">Failed to load products.</p>
+                  <button 
+                    onClick={() => {
+                      shopQuery.refetch();
+                      if (shopQuery.data) {
+                        productsQuery.refetch();
+                      }
+                    }}
+                    className="button-primary rounded-md"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              )}
+              
               {/* Products */}
-              {filteredProducts.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {filteredProducts.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-gothic-silver/70">No products found. Try adjusting your filters.</p>
-                </div>
+              {!isLoading && !shopQuery.error && !productsQuery.error && (
+                <>
+                  {filteredProducts.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {filteredProducts.map((product) => (
+                        <ProductCard key={product.id} product={product} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <p className="text-gothic-silver/70">No products found. Try adjusting your filters.</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

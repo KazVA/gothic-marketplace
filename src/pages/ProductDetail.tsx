@@ -1,114 +1,105 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
+import { ArrowLeft, ShoppingCart, Heart, Share2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { useToast } from '@/hooks/use-toast';
+import { fetchPrintifyProducts, fetchPrintifyShops, transformPrintifyProducts } from '@/lib/printify';
 import { Product } from '@/lib/types';
-import { ShoppingCart, Heart, ArrowLeft, Check } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { toast } from '@/components/ui/use-toast';
-
-// Sample product data
-const allProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Gothic Cathedral Mousepad',
-    price: 24.99,
-    description: 'Premium mousepad with a gothic cathedral design. Perfect for adding a touch of darkness to your desktop. Features a smooth surface for precise mouse tracking and a non-slip rubber base to keep it securely in place. The high-quality print showcases intricate gothic cathedral architecture in stunning detail.\n\nDimensions: 900mm x 400mm x 4mm\nMaterial: Cloth surface with rubber base\nEdges: Stitched to prevent fraying',
-    images: [
-      'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1470813740244-df37b8c1edcb?auto=format&fit=crop&w=800&q=80'
-    ],
-    category: 'mousepads',
-    tags: ['gothic', 'cathedral', 'desk accessories'],
-    featured: true,
-    inStock: true
-  },
-  {
-    id: '2',
-    name: 'Raven\'s Journal',
-    price: 29.99,
-    description: 'Elegant journal with an embossed raven design. 200 high-quality pages for your darkest thoughts. The cover features a beautifully detailed raven in flight, embossed on premium faux leather. The acid-free paper is suitable for a variety of media including fountain pens.\n\nPages: 200 (100 sheets)\nPaper: 120gsm cream, acid-free\nBinding: Sewn binding allows the journal to lay flat\nClosure: Elastic band\nIncludes: Ribbon bookmark and back pocket',
-    images: [
-      'https://images.unsplash.com/photo-1527576539890-dfa815648363?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1494891848038-7bd202a2afeb?auto=format&fit=crop&w=800&q=80'
-    ],
-    category: 'journals',
-    tags: ['raven', 'notebook', 'writing'],
-    featured: true,
-    inStock: true
-  },
-  {
-    id: '3',
-    name: 'Dark Night Sky Mousepad',
-    price: 22.99,
-    description: 'Extra large mousepad with a starry night sky design. Perfect for gamers and dark aesthetic enthusiasts. Features a smooth surface for precise mouse tracking and a non-slip rubber base to keep it securely in place. The high-quality print showcases a beautiful night sky with stars and constellations.\n\nDimensions: 900mm x 400mm x 4mm\nMaterial: Cloth surface with rubber base\nEdges: Stitched to prevent fraying',
-    images: [
-      'https://images.unsplash.com/photo-1470813740244-df37b8c1edcb?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=800&q=80'
-    ],
-    category: 'mousepads',
-    tags: ['night', 'stars', 'gaming'],
-    featured: true,
-    inStock: true
-  },
-  // ...other products
-];
 
 const ProductDetail = () => {
-  const { productId } = useParams();
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [product, setProduct] = useState<Product | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [mainImage, setMainImage] = useState("");
+  
+  // Fetch shop ID first
+  const shopQuery = useQuery({
+    queryKey: ['printifyShops'],
+    queryFn: fetchPrintifyShops,
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
+  
+  // Then use the shop ID to fetch products
+  const productsQuery = useQuery({
+    queryKey: ['printifyProducts', shopQuery.data],
+    queryFn: async () => {
+      if (!shopQuery.data || !shopQuery.data.data || shopQuery.data.data.length === 0) {
+        throw new Error("No shops found");
+      }
+      const shopId = shopQuery.data.data[0].id;
+      const printifyProducts = await fetchPrintifyProducts(shopId);
+      return transformPrintifyProducts(printifyProducts);
+    },
+    enabled: !!shopQuery.data && !!shopQuery.data.data && shopQuery.data.data.length > 0,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
   
   useEffect(() => {
     window.scrollTo(0, 0);
-    
-    // Simulating API fetch
-    setTimeout(() => {
-      const foundProduct = allProducts.find(p => p.id === productId);
-      setProduct(foundProduct || null);
-      setIsLoading(false);
-    }, 500);
-  }, [productId]);
+  }, []);
+  
+  useEffect(() => {
+    if (productsQuery.data && id) {
+      const foundProduct = productsQuery.data.find(p => p.id === id);
+      if (foundProduct) {
+        setProduct(foundProduct);
+        setMainImage(foundProduct.images[0]);
+      }
+    }
+  }, [productsQuery.data, id]);
+  
+  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value);
+    if (value > 0) {
+      setQuantity(value);
+    }
+  };
   
   const handleAddToCart = () => {
     if (product) {
+      // In a real app, this would add the product to the cart in state or context
       toast({
-        title: "Added to cart",
-        description: `${product.name} (${quantity}) has been added to your cart.`,
+        title: "Added to Cart",
+        description: `${quantity} x ${product.name} added to your cart.`,
       });
     }
   };
   
-  const handleQuantityChange = (newQuantity: number) => {
-    setQuantity(Math.max(1, newQuantity));
+  const handleImageClick = (image: string) => {
+    setMainImage(image);
   };
   
-  if (isLoading) {
+  if (shopQuery.isLoading || productsQuery.isLoading) {
     return (
       <div className="min-h-screen flex flex-col bg-gothic-black text-gothic-silver">
         <Navbar />
         <div className="flex-1 flex items-center justify-center">
-          <div className="w-12 h-12 border-4 border-gothic-accent/30 border-t-gothic-accent rounded-full animate-spin"></div>
+          <div className="w-16 h-16 border-4 border-gothic-accent/20 border-t-gothic-accent rounded-full animate-spin"></div>
         </div>
         <Footer />
       </div>
     );
   }
   
-  if (!product) {
+  if (!product && !productsQuery.isLoading) {
     return (
       <div className="min-h-screen flex flex-col bg-gothic-black text-gothic-silver">
         <Navbar />
-        <div className="flex-1 flex flex-col items-center justify-center p-6">
-          <h1 className="font-serif text-3xl font-medium mb-4">Product Not Found</h1>
-          <p className="text-gothic-silver/70 mb-8">
-            The product you're looking for doesn't exist or has been removed.
-          </p>
-          <Link to="/products" className="button-primary rounded-md">
+        <div className="flex-1 flex flex-col items-center justify-center px-6">
+          <h2 className="font-serif text-2xl mb-4">Product Not Found</h2>
+          <p className="text-gothic-silver/70 mb-6">The product you're looking for doesn't exist or has been removed.</p>
+          <button 
+            onClick={() => navigate('/products')}
+            className="button-primary rounded-md"
+          >
             Back to Products
-          </Link>
+          </button>
         </div>
         <Footer />
       </div>
@@ -119,152 +110,132 @@ const ProductDetail = () => {
     <div className="min-h-screen flex flex-col bg-gothic-black text-gothic-silver">
       <Navbar />
       
-      <div className="pt-32 pb-20 px-6">
+      {/* Product Detail Section */}
+      <div className="pt-32 pb-20 px-6 flex-1">
         <div className="container mx-auto">
-          {/* Breadcrumbs */}
-          <div className="mb-8">
-            <Link 
-              to="/products" 
-              className="flex items-center text-gothic-silver/60 hover:text-gothic-silver transition-colors duration-300"
-            >
-              <ArrowLeft size={16} className="mr-2" /> Back to Products
-            </Link>
-          </div>
+          {/* Back Button */}
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center text-gothic-silver/70 hover:text-gothic-silver mb-8 transition-colors duration-300"
+          >
+            <ArrowLeft size={16} className="mr-2" /> Back
+          </button>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            {/* Product Images */}
-            <motion.div 
-              className="space-y-4"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <div className="aspect-[4/3] overflow-hidden rounded-lg bg-gothic-gray/20 border border-gothic-silver/5">
-                <img 
-                  src={product.images[selectedImageIndex]} 
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
+          {product && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+              {/* Product Images */}
+              <div>
+                <div className="bg-gothic-gray/20 rounded-lg overflow-hidden mb-4">
+                  <img 
+                    src={mainImage} 
+                    alt={product.name}
+                    className="w-full h-auto object-contain aspect-square"
+                  />
+                </div>
+                
+                {product.images.length > 1 && (
+                  <div className="grid grid-cols-4 gap-4">
+                    {product.images.map((image, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleImageClick(image)}
+                        className={`bg-gothic-gray/20 rounded-lg overflow-hidden ${mainImage === image ? 'ring-2 ring-gothic-accent' : ''}`}
+                      >
+                        <img 
+                          src={image} 
+                          alt={`${product.name} - View ${index + 1}`}
+                          className="w-full h-auto object-contain aspect-square"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               
-              {product.images.length > 1 && (
-                <div className="flex space-x-4">
-                  {product.images.map((image, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedImageIndex(index)}
-                      className={`w-20 h-20 rounded-md overflow-hidden border-2 transition-colors duration-300 ${
-                        selectedImageIndex === index 
-                          ? 'border-gothic-accent' 
-                          : 'border-transparent hover:border-gothic-silver/30'
-                      }`}
-                    >
-                      <img 
-                        src={image} 
-                        alt={`${product.name} - view ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-            
-            {/* Product Info */}
-            <motion.div 
-              className="space-y-6"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5 }}
-            >
+              {/* Product Info */}
               <div>
-                <div className="text-sm text-gothic-silver/60 uppercase tracking-wider mb-2">
+                <div className="mb-2 text-sm text-gothic-silver/60 uppercase tracking-wider">
                   {product.category}
                 </div>
-                <h1 className="font-serif text-3xl lg:text-4xl font-medium mb-2">
+                <h1 className="font-serif text-3xl md:text-4xl font-medium mb-4">
                   {product.name}
                 </h1>
-                <div className="text-2xl text-gothic-silver mt-4">
+                <div className="text-2xl font-medium text-gothic-silver mb-6">
                   ${product.price.toFixed(2)}
                 </div>
-              </div>
-              
-              <div className="prose prose-sm prose-invert">
-                {product.description.split('\n\n').map((paragraph, idx) => (
-                  <p key={idx} className="text-gothic-silver/80 mb-4">
-                    {paragraph}
-                  </p>
-                ))}
-              </div>
-              
-              <div className="space-y-6 pt-6 border-t border-gothic-silver/10">
-                {/* Availability */}
-                <div className="flex items-center">
-                  <div className="mr-4 font-medium">Availability:</div>
-                  {product.inStock ? (
-                    <div className="flex items-center text-green-400">
-                      <Check size={16} className="mr-1" /> In Stock
-                    </div>
-                  ) : (
-                    <div className="text-gothic-silver/60">Out of Stock</div>
-                  )}
+                
+                <div className="prose prose-invert max-w-none mb-8">
+                  <p>{product.description}</p>
                 </div>
                 
                 {/* Quantity Selector */}
-                {product.inStock && (
+                <div className="mb-8">
+                  <label htmlFor="quantity" className="block text-sm text-gothic-silver/70 mb-2">
+                    Quantity
+                  </label>
                   <div className="flex items-center">
-                    <div className="mr-4 font-medium">Quantity:</div>
-                    <div className="flex items-center border border-gothic-silver/20 rounded">
-                      <button
-                        onClick={() => handleQuantityChange(quantity - 1)}
-                        className="p-1 px-2 text-gothic-silver/70 hover:text-gothic-silver disabled:opacity-50"
-                        disabled={quantity <= 1}
-                      >
-                        -
-                      </button>
-                      <span className="px-4 py-1 min-w-[40px] text-center">
-                        {quantity}
-                      </span>
-                      <button
-                        onClick={() => handleQuantityChange(quantity + 1)}
-                        className="p-1 px-2 text-gothic-silver/70 hover:text-gothic-silver"
-                      >
-                        +
-                      </button>
+                    <button
+                      onClick={() => quantity > 1 && setQuantity(quantity - 1)}
+                      className="bg-gothic-gray/40 text-gothic-silver px-4 py-2 rounded-l-md"
+                    >
+                      -
+                    </button>
+                    <input
+                      id="quantity"
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={handleQuantityChange}
+                      className="bg-gothic-gray/20 border-y border-gothic-silver/20 text-center px-4 py-2 w-16 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => setQuantity(quantity + 1)}
+                      className="bg-gothic-gray/40 text-gothic-silver px-4 py-2 rounded-r-md"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <button
+                    onClick={handleAddToCart}
+                    className="button-primary rounded-md flex-1 flex items-center justify-center"
+                    disabled={!product.inStock}
+                  >
+                    <ShoppingCart size={18} className="mr-2" />
+                    {product.inStock ? 'Add to Cart' : 'Out of Stock'}
+                  </button>
+                  
+                  <button className="button-secondary rounded-md p-3">
+                    <Heart size={18} />
+                  </button>
+                  
+                  <button className="button-secondary rounded-md p-3">
+                    <Share2 size={18} />
+                  </button>
+                </div>
+                
+                {/* Tags */}
+                {product.tags && product.tags.length > 0 && (
+                  <div className="mt-8">
+                    <div className="text-sm text-gothic-silver/70 mb-2">Tags:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {product.tags.map((tag, index) => (
+                        <span 
+                          key={index}
+                          className="bg-gothic-gray/20 text-gothic-silver/80 text-xs px-3 py-1 rounded-full"
+                        >
+                          {tag}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 )}
-                
-                {/* Action Buttons */}
-                <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                  <button
-                    onClick={handleAddToCart}
-                    disabled={!product.inStock}
-                    className="button-primary rounded-md flex-1 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ShoppingCart size={18} className="mr-2" /> Add to Cart
-                  </button>
-                  <button className="button-secondary rounded-md flex items-center justify-center">
-                    <Heart size={18} className="mr-2" /> Add to Wishlist
-                  </button>
-                </div>
               </div>
-              
-              {/* Tags */}
-              <div className="pt-6 border-t border-gothic-silver/10">
-                <div className="flex flex-wrap gap-2">
-                  {product.tags.map((tag) => (
-                    <span 
-                      key={tag}
-                      className="px-3 py-1 bg-gothic-gray/40 text-gothic-silver/80 text-xs rounded-full"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          </div>
+            </div>
+          )}
         </div>
       </div>
       

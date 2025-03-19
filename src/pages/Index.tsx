@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -5,54 +6,8 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import { ArrowRight, Star, ShieldCheck, Truck } from 'lucide-react';
-
-// Sample data for featured products
-const featuredProducts = [
-  {
-    id: '1',
-    name: 'Gothic Cathedral Mousepad',
-    price: 24.99,
-    description: 'Premium mousepad with a gothic cathedral design. Perfect for adding a touch of darkness to your desktop.',
-    images: ['https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=800&q=80'],
-    category: 'mousepads',
-    tags: ['gothic', 'cathedral', 'desk accessories'],
-    featured: true,
-    inStock: true
-  },
-  {
-    id: '2',
-    name: 'Raven\'s Journal',
-    price: 29.99,
-    description: 'Elegant journal with an embossed raven design. 200 high-quality pages for your darkest thoughts.',
-    images: ['https://images.unsplash.com/photo-1527576539890-dfa815648363?auto=format&fit=crop&w=800&q=80'],
-    category: 'journals',
-    tags: ['raven', 'notebook', 'writing'],
-    featured: true,
-    inStock: true
-  },
-  {
-    id: '3',
-    name: 'Dark Night Sky Mousepad',
-    price: 22.99,
-    description: 'Extra large mousepad with a starry night sky design. Perfect for gamers and dark aesthetic enthusiasts.',
-    images: ['https://images.unsplash.com/photo-1470813740244-df37b8c1edcb?auto=format&fit=crop&w=800&q=80'],
-    category: 'mousepads',
-    tags: ['night', 'stars', 'gaming'],
-    featured: true,
-    inStock: true
-  },
-  {
-    id: '4',
-    name: 'Victorian Architecture Journal',
-    price: 34.99,
-    description: 'Hard-bound journal featuring Victorian architecture prints. Includes bookmark ribbon and elastic closure.',
-    images: ['https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80'],
-    category: 'journals',
-    tags: ['victorian', 'architecture', 'vintage'],
-    featured: true,
-    inStock: true
-  },
-];
+import { useQuery } from '@tanstack/react-query';
+import { fetchPrintifyProducts, fetchPrintifyShops, transformPrintifyProducts } from '@/lib/printify';
 
 const heroVariants = {
   hidden: { opacity: 0 },
@@ -67,6 +22,31 @@ const heroVariants = {
 };
 
 const Home = () => {
+  // Fetch shop ID first
+  const shopQuery = useQuery({
+    queryKey: ['printifyShops'],
+    queryFn: fetchPrintifyShops,
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
+  
+  // Then use the shop ID to fetch products
+  const productsQuery = useQuery({
+    queryKey: ['printifyProducts', shopQuery.data],
+    queryFn: async () => {
+      if (!shopQuery.data || !shopQuery.data.data || shopQuery.data.data.length === 0) {
+        throw new Error("No shops found");
+      }
+      const shopId = shopQuery.data.data[0].id;
+      const printifyProducts = await fetchPrintifyProducts(shopId);
+      return transformPrintifyProducts(printifyProducts);
+    },
+    enabled: !!shopQuery.data && !!shopQuery.data.data && shopQuery.data.data.length > 0,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+  
+  // Get featured products (top 4 products for now)
+  const featuredProducts = productsQuery.data?.slice(0, 4) || [];
+  
   // Scroll to top on component mount
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -154,11 +134,48 @@ const Home = () => {
             </Link>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {featuredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          {/* Loading State */}
+          {(shopQuery.isLoading || productsQuery.isLoading) && (
+            <div className="text-center py-16">
+              <div className="w-12 h-12 border-4 border-gothic-accent/20 border-t-gothic-accent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gothic-silver/70">Loading products...</p>
+            </div>
+          )}
+          
+          {/* Error State */}
+          {(shopQuery.error || productsQuery.error) && !(shopQuery.isLoading || productsQuery.isLoading) && (
+            <div className="text-center py-16">
+              <p className="text-gothic-silver/70 mb-4">Failed to load products.</p>
+              <button 
+                onClick={() => {
+                  shopQuery.refetch();
+                  if (shopQuery.data) {
+                    productsQuery.refetch();
+                  }
+                }}
+                className="button-primary rounded-md"
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+          
+          {/* Products */}
+          {!(shopQuery.isLoading || productsQuery.isLoading) && !(shopQuery.error || productsQuery.error) && (
+            <>
+              {featuredProducts.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                  {featuredProducts.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gothic-silver/70">No products found.</p>
+                </div>
+              )}
+            </>
+          )}
           
           <div className="mt-10 text-center md:hidden">
             <Link 
