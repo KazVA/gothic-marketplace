@@ -25,7 +25,7 @@ const PayPalCheckoutButton: React.FC<PayPalCheckoutButtonProps> = ({
   useEffect(() => {
     // Load the PayPal SDK script when the component mounts
     const script = document.createElement("script");
-    script.src = `https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID&currency=USD`;
+    script.src = `https://www.paypal.com/sdk/js?client-id=ARTBX8MZzIyHAQL6vpq-1nsZ58AoLH73pHQArorSsfCIs1esEAXluUVbdB1x1CcxWSxOClCYVGS61K2E&currency=USD`;
     script.async = true;
 
     script.onload = () => {
