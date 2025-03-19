@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
@@ -44,12 +45,29 @@ const Cart = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
     
-    // Simulate fetching cart items
-    setTimeout(() => {
+    // Check if we have cart items in localStorage
+    const savedCartItems = localStorage.getItem('cartItems');
+    if (savedCartItems) {
+      try {
+        setCartItems(JSON.parse(savedCartItems));
+      } catch (e) {
+        console.error("Error parsing cart items from localStorage:", e);
+        setCartItems(initialCartItems);
+      }
+    } else {
+      // Use sample data if no saved items
       setCartItems(initialCartItems);
-      setIsLoading(false);
-    }, 500);
+    }
+    
+    setIsLoading(false);
   }, []);
+  
+  // Save cart items to localStorage whenever they change
+  useEffect(() => {
+    if (!isLoading) {
+      localStorage.setItem('cartItems', JSON.stringify(cartItems));
+    }
+  }, [cartItems, isLoading]);
   
   const updateQuantity = (productId: string, newQuantity: number) => {
     setCartItems(prevItems => 
@@ -134,9 +152,9 @@ const Cart = () => {
                   </div>
                   
                   <div className="mt-8 space-y-4">
-                    <button className="button-primary w-full rounded-md flex items-center justify-center">
-                      <CreditCard className="mr-2" size={18} /> Checkout with PayPal
-                    </button>
+                    <Link to="/checkout" className="button-primary w-full rounded-md flex items-center justify-center">
+                      <CreditCard className="mr-2" size={18} /> Proceed to Checkout
+                    </Link>
                     <Link to="/products" className="button-secondary w-full rounded-md flex items-center justify-center">
                       Continue Shopping <ArrowRight size={16} className="ml-2" />
                     </Link>
