@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
@@ -6,7 +5,7 @@ import Footer from '@/components/Footer';
 import CartItem from '@/components/CartItem';
 import { CartItem as CartItemType, Product } from '@/lib/types';
 import { motion } from 'framer-motion';
-import { ShoppingBag, ArrowRight, PaypalLogo } from 'lucide-react';
+import { ShoppingBag, ArrowRight, CreditCard } from 'lucide-react';
 
 // Sample cart items
 const initialCartItems: CartItemType[] = [
@@ -136,7 +135,7 @@ const Cart = () => {
                   
                   <div className="mt-8 space-y-4">
                     <button className="button-primary w-full rounded-md flex items-center justify-center">
-                      <PaypalLogo className="mr-2" size={18} /> Checkout with PayPal
+                      <CreditCard className="mr-2" size={18} /> Checkout with PayPal
                     </button>
                     <Link to="/products" className="button-secondary w-full rounded-md flex items-center justify-center">
                       Continue Shopping <ArrowRight size={16} className="ml-2" />

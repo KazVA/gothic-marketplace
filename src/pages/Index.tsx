@@ -1,11 +1,10 @@
-
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
-import { ArrowRight, Star, ShieldCheck, TruckFast } from 'lucide-react';
+import { ArrowRight, Star, ShieldCheck, Truck } from 'lucide-react';
 
 // Sample data for featured products
 const featuredProducts = [
@@ -239,7 +238,7 @@ const Home = () => {
             
             <div className="bg-gothic-gray/20 p-8 rounded-lg border border-gothic-silver/5 text-center">
               <div className="mx-auto w-12 h-12 bg-gothic-accent/20 flex items-center justify-center rounded-full mb-6">
-                <TruckFast size={24} className="text-gothic-accent" />
+                <Truck size={24} className="text-gothic-accent" />
               </div>
               <h3 className="font-serif text-xl font-medium mb-4">Fast Delivery</h3>
               <p className="text-gothic-silver/70">
